@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 18
+VisualStudioVersion = 18.0.11222.15 d18.0
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SacRiosDesiertoApi", "SacRiosDesiertoApi.csproj", "{9985FE09-710D-2874-BCC3-343BC6D9AD40}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{9985FE09-710D-2874-BCC3-343BC6D9AD40}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9985FE09-710D-2874-BCC3-343BC6D9AD40}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9985FE09-710D-2874-BCC3-343BC6D9AD40}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9985FE09-710D-2874-BCC3-343BC6D9AD40}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {BDC46479-E4AF-4C08-85B3-D17F3A0E3768}
+	EndGlobalSection
+EndGlobal
