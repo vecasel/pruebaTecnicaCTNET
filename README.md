@@ -1,115 +1,69 @@
-# SAC Ríos del Desierto – API .NET (Prueba Técnica)
+# Guía de Implementación en Ambiente Productivo – Backend .NET
 
-Este proyecto implementa la versión **.NET** de la API para el sistema de fidelización de clientes **“Ríos del Desierto S.A.S.”**, equivalente a la versión desarrollada en **Python/Django**.
+Esta guía describe, paso a paso, cómo desplegar la versión **.NET (ASP.NET Core Web API)** de la API de **SAC Ríos del Desierto** en un ambiente productivo sencillo.
 
-El objetivo de la API es:
+Se plantean dos escenarios típicos:
 
-1. Consultar un cliente por tipo y número de documento, incluyendo sus compras.
-2. Exportar los datos del cliente y sus compras a **CSV**.
-3. Generar un reporte de **clientes fidelizados** (los que superan un monto mínimo de compras en el último mes) en **Excel (.xlsx)**.
-
----
-
-## 1. Tecnologías utilizadas
-
-- **.NET**: ASP.NET Core Web API
-- **ORM**: Entity Framework Core
-- **Base de datos**: SQL Server
-- **Librería Excel**: ClosedXML
-- **Formato de exportación**: CSV y Excel
-- **Documentación interactiva**: Swagger (OpenAPI)
-- **Frontend**: HTML + JavaScript (fetch) consumiendo esta API
+- Despliegue en **Windows Server + IIS**
+- Despliegue en **Linux (Ubuntu) + Kestrel + Nginx**
 
 ---
 
-## 2. Arquitectura general
+## 1. Preparar el entorno (.NET)
 
-La solución .NET está organizada en varias piezas clave:
+### 1.1. Instalar .NET SDK / Runtime
 
-- **Program.cs**  
-  Configuración de servicios (DbContext, CORS, Controllers, Swagger) y pipeline HTTP.
+En el servidor de producción se recomienda instalar el **ASP.NET Core Runtime** (si solo se va a ejecutar) o el SDK (si también se compila ahí).
 
-- **Data/AppDbContext.cs**  
-  DbContext de Entity Framework Core. Expone las tablas principales y define relaciones e índices.
+En Windows:
 
-- **Models/**  
-  Entidades de dominio mapeadas a tablas de base de datos:
-  - `DocumentType`  
-  - `Client`  
-  - `Purchase`  
+- Descarga desde el sitio oficial de .NET el **Hosting Bundle** (incluye runtime + integración con IIS).
 
-- **Dtos/**  
-  Objetos de transferencia de datos utilizados para controlar el formato del JSON que se devuelve al frontend:
-  - `DocumentTypeDto`  
-  - `ClientDto`  
-  - `PurchaseDto`  
+En Linux (Ubuntu) – ejemplo rápido:
 
-- **Controllers/**  
-  Controladores Web API que exponen los endpoints REST:
-  - `ClientController`  
-    - `GET /api/client/search`  
-    - `GET /api/client/export`  
-  - `ReportsController`  
-    - `GET /api/reports/loyal-customers`  
+```bash
+# Agregar repositorio Microsoft (consultar docs oficiales para versión específica)
+sudo apt update
+# Instalar runtime (ejemplo genérico, ajustar versión)
+# sudo apt install -y aspnetcore-runtime-8.0
+```
+
+> En la prueba técnica basta con explicar que en el servidor se instala el runtime adecuado para la versión de .NET utilizada.
 
 ---
 
-## 3. Modelo de datos
+## 2. Publicar la aplicación (build de producción)
 
-### 3.1. Entidades principales
+Desde la máquina de desarrollo (o un servidor de build), situarse en la carpeta del proyecto .NET:
 
-#### DocumentType
+```bash
+cd SacRiosDesiertoApi
+```
 
-Representa el tipo de documento del cliente (`CC`, `NIT`, `PAS`, etc.).
+Publicar en modo Release:
 
-Campos:
-- `Id` (int, PK)
-- `Code` (string) – Ej: `CC`
-- `Name` (string) – Ej: `Cédula de ciudadanía`
-- Relación 1:N con `Client`
+```bash
+dotnet publish -c Release -o ./publish
+```
 
-#### Client
-
-Representa un cliente registrado en el sistema.
-
-Campos principales:
-- `Id` (int, PK)
-- `DocumentTypeId` (FK a `DocumentType`)
-- `DocumentNumber` (string) – Ej: `1022422328`
-- `FirstName` (string)
-- `LastName` (string)
-- `Email` (string)
-- `Phone` (string)
-- `CreatedAt`, `UpdatedAt` (DateTime)
-- Relación 1:N con `Purchase`
-
-Además, se define un **índice único** sobre `(DocumentTypeId, DocumentNumber)` para evitar clientes duplicados con el mismo tipo y número de documento.
-
-#### Purchase
-
-Representa una compra realizada por un cliente.
-
-Campos:
-- `Id` (int, PK)
-- `ClientId` (FK a `Client`)
-- `Amount` (decimal) – Monto de la compra
-- `PurchaseDate` (DateTime)
-- `Description` (string, opcional)
-- `OrderNumber` (string, opcional)
-- `CreatedAt` (DateTime)
+Esto generará una carpeta `publish/` con todos los archivos necesarios para ejecutar la API en producción.
 
 ---
 
-## 4. Configuración del proyecto
+## 3. Configuración de la cadena de conexión y appsettings
 
-### 4.1. Cadena de conexión (SQL Server)
+En producción se suele utilizar un `appsettings.Production.json` o variables de entorno para:
 
-En el archivo `appsettings.json` se configura la cadena de conexión:
+- Cadena de conexión (`DefaultConnection`)
+- Configuración de logging
+- Cualquier otra configuración sensible
+
+Ejemplo de `appsettings.Production.json`:
 
 ```json
 {
   "ConnectionStrings": {
-    "DefaultConnection": "Server=localhost\\SQLEXPRESS;Database=SacRiosDesiertoDb;Trusted_Connection=True;MultipleActiveResultSets=true;TrustServerCertificate=True"
+    "DefaultConnection": "Server=SERVIDOR_SQL;Database=SacRiosDesiertoDb;User Id=usuario;Password=clave;TrustServerCertificate=True"
   },
   "Logging": {
     "LogLevel": {
@@ -121,25 +75,158 @@ En el archivo `appsettings.json` se configura la cadena de conexión:
 }
 ```
 
-Ajustar según el entorno local (nombre de servidor, base de datos, etc.).
-
-### 4.2. DbContext en Program.cs
-
-```csharp
-builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseSqlServer(
-        builder.Configuration.GetConnectionString("DefaultConnection")
-    )
-);
-```
-
-Esto indica que `AppDbContext` usará SQL Server con la cadena `DefaultConnection`.
+En `Program.cs` la aplicación usará la configuración correspondiente al entorno (`ASPNETCORE_ENVIRONMENT=Production`).
 
 ---
 
-## 5. Configuración de CORS
+## 4. Despliegue en Windows Server + IIS
 
-Para permitir que un frontend en otro puerto (por ejemplo `http://127.0.0.1:5500`) consuma la API, se configura **CORS** en `Program.cs`:
+### 4.1. Requisitos
+
+- Windows Server
+- IIS instalado
+- ASP.NET Core Hosting Bundle instalado
+
+### 4.2. Copiar los archivos publicados
+
+Copiar el contenido de la carpeta `publish/` hacia una ruta en el servidor, por ejemplo:
+
+```text
+C:\inetpub\wwwroot\SacRiosDesiertoApi\
+```
+
+### 4.3. Crear un sitio en IIS
+
+1. Abrir **IIS Manager**.
+2. Click derecho en **Sites → Add Website…**
+3. Configurar:
+   - **Site name**: `SacRiosDesiertoApi`
+   - **Physical path**: `C:\inetpub\wwwroot\SacRiosDesiertoApi`
+   - **Binding**: puerto (ej. 443 si hay certificado, o 8080/80).
+4. Aceptar.
+
+IIS utilizará el módulo de ASP.NET Core para arrancar la aplicación (ejecutando `dotnet SacRiosDesiertoApi.dll` internamente).
+
+### 4.4. Probar el sitio
+
+En el navegador del servidor o desde tu máquina:
+
+```text
+https://mi-servidor/api/client/search?document_type=CC&document_number=1022422328
+```
+
+Debe devolver la respuesta JSON esperada.
+
+---
+
+## 5. Despliegue en Linux + Nginx + Kestrel
+
+### 5.1. Copiar archivos al servidor
+
+En el servidor Linux, copiar el contenido de `publish/` a una ruta, por ejemplo:
+
+```bash
+sudo mkdir -p /opt/sac-rios-desierto-net
+sudo cp -r publish/* /opt/sac-rios-desierto-net/
+```
+
+### 5.2. Crear servicio systemd para la API
+
+1. Crear archivo de servicio:
+
+   ```bash
+   sudo nano /etc/systemd/system/sac-rios-desierto-net.service
+   ```
+
+2. Contenido de ejemplo:
+
+   ```ini
+   [Unit]
+   Description=SAC Rios del Desierto .NET API
+   After=network.target
+
+   [Service]
+   WorkingDirectory=/opt/sac-rios-desierto-net
+   ExecStart=/usr/bin/dotnet /opt/sac-rios-desierto-net/SacRiosDesiertoApi.dll
+   Restart=always
+   RestartSec=10
+   SyslogIdentifier=sac-rios-desierto-net
+   User=www-data
+   Environment=ASPNETCORE_ENVIRONMENT=Production
+
+   [Install]
+   WantedBy=multi-user.target
+   ```
+
+3. Recargar daemon y habilitar servicio:
+
+   ```bash
+   sudo systemctl daemon-reload
+   sudo systemctl start sac-rios-desierto-net
+   sudo systemctl enable sac-rios-desierto-net
+   ```
+
+4. Verificar estado:
+
+   ```bash
+   sudo systemctl status sac-rios-desierto-net
+   ```
+
+La aplicación escuchará por defecto en `http://localhost:5000` o el puerto configurado en `appsettings` o variables de entorno.
+
+### 5.3. Configurar Nginx como reverse proxy
+
+1. Crear archivo de configuración:
+
+   ```bash
+   sudo nano /etc/nginx/sites-available/rios-desierto-net
+   ```
+
+2. Ejemplo de configuración:
+
+   ```nginx
+   server {
+       listen 80;
+       server_name mi-dominio.com;
+
+       # Proxy a la API .NET (Kestrel)
+       location /api/ {
+           proxy_pass         http://127.0.0.1:5000;
+           proxy_http_version 1.1;
+           proxy_set_header   Upgrade $http_upgrade;
+           proxy_set_header   Connection keep-alive;
+           proxy_set_header   Host $host;
+           proxy_cache_bypass $http_upgrade;
+           proxy_set_header   X-Forwarded-For $proxy_add_x_forwarded_for;
+           proxy_set_header   X-Forwarded-Proto $scheme;
+       }
+
+       # Frontend estático (si se desea servir desde el mismo servidor)
+       location / {
+           root /opt/sac-rios-desierto-frontend;
+           try_files $uri /index.html;
+       }
+   }
+   ```
+
+3. Habilitar sitio y recargar Nginx:
+
+   ```bash
+   sudo ln -s /etc/nginx/sites-available/rios-desierto-net /etc/nginx/sites-enabled/
+   sudo nginx -t
+   sudo systemctl restart nginx
+   ```
+
+Con esto:
+
+- `http://mi-dominio.com` servirá el frontend.
+- `http://mi-dominio.com/api/...` apuntará a la API .NET.
+
+---
+
+## 6. Consideraciones de CORS en producción
+
+En `Program.cs` se definió una política CORS, por ejemplo:
 
 ```csharp
 const string FrontendCorsPolicy = "FrontendCorsPolicy";
@@ -150,8 +237,7 @@ builder.Services.AddCors(options =>
     {
         policy
             .WithOrigins(
-                "http://127.0.0.1:5500",
-                "http://localhost:5500"
+                "https://mi-frontend.com"
             )
             .AllowAnyHeader()
             .AllowAnyMethod();
@@ -159,260 +245,43 @@ builder.Services.AddCors(options =>
 });
 ```
 
-En el pipeline de la aplicación se activa la política:
+Y en el pipeline:
 
 ```csharp
-app.UseHttpsRedirection();
-
 app.UseCors(FrontendCorsPolicy);
-
-app.UseAuthorization();
-
-app.MapControllers();
 ```
 
-De esta manera, las respuestas incluirán el header `Access-Control-Allow-Origin` y el navegador permitirá las peticiones desde el frontend.
+En producción se debe ajustar el origen (`WithOrigins`) al dominio real donde vive el frontend.
 
 ---
 
-## 6. Endpoints principales
+## 7. Base de datos en producción
 
-### 6.1. `GET /api/client/search`
+La API .NET utiliza **Entity Framework Core** y una cadena de conexión configurada en `ConnectionStrings:DefaultConnection`.
 
-Busca un cliente por tipo y número de documento y devuelve sus datos junto con la lista de compras.
+Pasos típicos:
 
-**Ejemplo de request:**
+1. Crear la base de datos `SacRiosDesiertoDb` en el servidor SQL Server.
+2. Ejecutar migraciones (si se ejecutan desde el servidor de apps):
 
-```http
-GET https://localhost:44304/api/client/search?document_type=CC&document_number=1022422328
-```
-
-**Parámetros:**
-
-- `document_type` (string, requerido) – Código del tipo de documento (`CC`, `NIT`, etc.).  
-- `document_number` (string, requerido) – Número de documento del cliente.
-
-**Respuestas posibles:**
-
-- `200 OK` – Cliente encontrado, devuelve JSON con datos del cliente y compras.
-- `400 Bad Request` – Faltan parámetros o tipo de documento inválido.
-- `404 Not Found` – Cliente no encontrado.
-
-**Ejemplo de respuesta 200:**
-
-```json
-{
-  "documentType": {
-    "code": "CC",
-    "name": "Cédula de ciudadanía"
-  },
-  "documentNumber": "1022422328",
-  "firstName": "Daniel",
-  "lastName": "Velasquez",
-  "email": "daniel@example.com",
-  "phone": "3001234567",
-  "purchases": [
-    {
-      "amount": 2500000,
-      "purchaseDate": "2025-12-04T20:01:58.0566667",
-      "description": "Compra en Falabella Hogar",
-      "orderNumber": "ORD-1001"
-    },
-    {
-      "amount": 3200000,
-      "purchaseDate": "2025-11-24T20:01:58.0566667",
-      "description": "Electrodomésticos",
-      "orderNumber": "ORD-1002"
-    },
-    {
-      "amount": 450000,
-      "purchaseDate": "2025-11-14T20:01:58.0566667",
-      "description": "Ropa Hombre",
-      "orderNumber": "ORD-1003"
-    }
-  ]
-}
-```
-
-### 6.2. `GET /api/client/export`
-
-Genera un archivo **CSV** con los datos del cliente y todas sus compras.
-
-**Request:**
-
-```http
-GET https://localhost:44304/api/client/export?document_type=CC&document_number=1022422328
-```
-
-El servidor:
-
-1. Valida los parámetros.
-2. Busca el `DocumentType` (por `Code`).
-3. Busca el `Client` con ese tipo y número de documento.
-4. Construye un CSV en memoria con la siguiente estructura:
-
-```text
-Datos del cliente
-Tipo documento;Número de documento;Nombre;Apellido;Correo;Teléfono
-CC;1022422328;Daniel;Velasquez;daniel@example.com;3001234567
-
-Compras del cliente
-Fecha de compra;Monto;Descripción;Número de orden
-2025-12-04;2500000;Compra en Falabella Hogar;ORD-1001
-2025-11-24;3200000;Electrodomésticos;ORD-1002
-2025-11-14;450000;Ropa Hombre;ORD-1003
-```
-
-Devuelve el CSV como un archivo descargable.
-
-### 6.3. `GET /api/reports/loyal-customers`
-
-Genera un archivo **Excel (.xlsx)** con los clientes que superan un monto mínimo de compras en el último mes.
-
-Reglas de negocio:
-
-- Se consideran las compras de los **últimos 30 días**.
-- Se agrupan las compras por cliente y se calcula el total.
-- Se filtran los clientes cuyo total de compras en ese periodo sea **mayor a 5.000.000**.
-- Se genera una hoja de cálculo con columnas como:
-  - `Tipo documento`
-  - `Nombre tipo documento`
-  - `Número de documento`
-  - `Nombre`
-  - `Apellido`
-  - `Correo`
-  - `Teléfono`
-  - `Total último mes`
-
-El archivo se construye en memoria utilizando **ClosedXML** y se devuelve como un archivo `.xlsx` descargable.
-
-**Ejemplo de request:**
-
-```http
-GET https://localhost:44304/api/reports/loyal-customers
-```
-
-**Respuestas:**
-
-- `200 OK` – Devuelve el archivo Excel.
-- `404 Not Found` – Si no hay compras en el último mes o ningún cliente supera el monto mínimo.
-
----
-
-## 7. Población de datos de prueba
-
-Ejemplo de inserciones SQL para probar la API con un cliente real.
-
-### 7.1. Insertar tipo de documento (DocumentTypes)
-
-```sql
-INSERT INTO DocumentTypes (Code, Name)
-VALUES ('CC', 'Cédula de ciudadanía');
-```
-
-### 7.2. Insertar cliente (Clients)
-
-```sql
-INSERT INTO Clients (
-    DocumentTypeId, DocumentNumber, FirstName, LastName,
-    Email, Phone, CreatedAt, UpdatedAt
-) VALUES (
-    1,                         -- Id del tipo de documento CC
-    '1022422328',
-    'Daniel',
-    'Velasquez',
-    'daniel@example.com',
-    '3001234567',
-    GETDATE(),
-    GETDATE()
-);
-```
-
-### 7.3. Insertar compras (Purchases)
-
-```sql
-INSERT INTO Purchases (ClientId, Amount, PurchaseDate, Description, OrderNumber, CreatedAt)
-VALUES
-(1, 2500000, GETDATE(), 'Compra en Falabella Hogar', 'ORD-1001', GETDATE()),
-(1, 3200000, DATEADD(DAY, -10, GETDATE()), 'Electrodomésticos', 'ORD-1002', GETDATE()),
-(1, 450000, DATEADD(DAY, -20, GETDATE()), 'Ropa Hombre', 'ORD-1003', GETDATE());
-```
-
-Con estos datos de prueba, el cliente `CC – 1022422328` puede consultarse y mostrará compras en el frontend.
-
----
-
-## 8. Ejecución del proyecto
-
-### 8.1. Requisitos previos
-
-- .NET SDK (6, 7 u 8)
-- SQL Server (local o remoto)
-- Herramienta para ejecutar SQL (por ejemplo, SQL Server Management Studio)
-- Navegador para consumir Swagger o Postman para pruebas
-
-### 8.2. Pasos para ejecutar
-
-1. Restaurar paquetes y compilar:
    ```bash
-   dotnet restore
-   dotnet build
+   dotnet ef database update --project SacRiosDesiertoApi
    ```
 
-2. Ejecutar migraciones (si se usan migraciones de EF Core):
-   ```bash
-   dotnet ef migrations add InitialCreate
-   dotnet ef database update
-   ```
-
-3. Levantar la API:
-   ```bash
-   dotnet run
-   ```
-
-4. Abrir Swagger en el navegador (URL aproximada):
-   ```text
-   https://localhost:44304/swagger
-   ```
-
-5. Probar los endpoints directamente desde Swagger o con Postman.
+3. Poblar datos iniciales (tipos de documento, cliente de prueba, compras de ejemplo) usando:
+   - Scripts SQL (como los ejemplos del README).
+   - O un seeder en .NET si se desea automatizar.
 
 ---
 
-## 9. Integración con el frontend
+## 8. Resumen de arquitectura productiva (.NET)
 
-El frontend es una página HTML con JavaScript que consume esta API:
+- **Nginx / IIS** recibe las peticiones HTTP/HTTPS.
+- Reenvía las rutas `/api/` a la aplicación .NET (Kestrel o módulo de ASP.NET Core en IIS).
+- La aplicación **ASP.NET Core Web API**:
+  - Expone endpoints `/api/client/search`, `/api/client/export`, `/api/reports/loyal-customers`.
+  - Utiliza **EF Core** para consultar/actualizar la base de datos.
+  - Usa **ClosedXML** para generar archivos Excel en memoria.
+- El **frontend** (HTML + JS) consume la API mediante `fetch`, usando la URL pública del backend.
 
-- Para **buscar cliente**, realiza un `fetch` a:
-
-  ```js
-  const url = `${API_BASE_URL}/api/client/search/?document_type=${encodeURIComponent(documentType)}&document_number=${encodeURIComponent(documentNumber)}`;
-  const response = await fetch(url);
-  ```
-
-- Para **exportar CSV**, abre una nueva pestaña con:
-
-  ```js
-  const url = `${API_BASE_URL}/api/client/export/?document_type=${encodeURIComponent(documentType)}&document_number=${encodeURIComponent(documentNumber)}`;
-  window.open(url, '_blank');
-  ```
-
-- Para el **reporte de fidelización**, consume el endpoint `/api/reports/loyal-customers` y descarga el Excel generado por la API .NET.
-
----
-
-## 10. Resumen para la entrevista
-
-- API construida con **ASP.NET Core Web API** + **EF Core**.
-- Modelo de datos sencillo, pero preparado para extensión (clientes, tipos de documento, compras).
-- Endpoints REST:
-  - Búsqueda de cliente + compras.
-  - Exportación a CSV de un cliente.
-  - Reporte de clientes fieles en Excel.
-- Uso de:
-  - **DTOs** para controlar el contrato de salida.
-  - **CORS** para permitir front en un origen distinto.
-  - **ClosedXML** para generación de Excel en memoria.
-  - **Swagger** para documentación y pruebas rápidas.
-
-Este README resume el diseño técnico de la solución .NET y sirve como guía de instalación, uso y explicación en la prueba técnica.
+Con esta guía puedes explicar cómo pasar de la versión de desarrollo de la API .NET a un despliegue productivo básico, tanto en Windows como en Linux.
